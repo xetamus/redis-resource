@@ -1,0 +1,30 @@
+---
+# settings for the redis-resource pipeline
+meta:
+  target: sw
+  url:    https://ci.vsphere.starkandwayne.com
+  name:   redis
+
+  initial_version: 0.0.1
+
+  aws:
+    bucket:     redis-resource-pipeline
+    access_key: (( vault "secret/aws/cfcommunity:access" ))
+    secret_key: (( vault "secret/aws/cfcommunity:secret" ))
+
+  dockerhub:
+    email:    (( vault "secret/dockerhub:email" ))
+    username: (( vault "secret/dockerhub:username" ))
+    password: (( vault "secret/dockerhub:password" ))
+    repository: cfcommunity/redis-resource
+
+  github:
+    owner: starkandwayne
+    repo:  redis-resource
+    private_key:  (( vault "secret/pipelines/redis-resource/github:private" ))
+    access_token: (( vault "secret/pipelines/redis-resource/github:token" ))
+
+  slack:
+    webhook: (( vault "secret/pipelines/redis-resource/slack:webhook" ))
+    channel: '#botspam'
+
