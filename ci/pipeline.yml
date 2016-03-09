@@ -23,13 +23,24 @@ meta:
     access_key: (( param "Please set your AWS Access Key ID" ))
     secret_key: (( param "Please set your AWS Secret Key ID" ))
 
-  github:
-    uri:          (( concat "git@github.com:" meta.github.owner "/" meta.github.repo ))
-    owner:        (( param "Please specify the name of the user / organization that owns the Github repository" ))
-    repo:         (( param "Please specify the name of the Github repository" ))
-    branch:       master
-    private_key:  (( param "Please generate an SSH Deployment Key for this repo and specify it here" ))
-    access_token: (( param "Please generate a Personal Access Token and specify it here" ))
+  source:
+    github:
+      uri:          (( concat "git@github.com:" meta.source.github.owner "/" meta.source.github.repo ))
+      owner:        (( param "Please specify the name of the user / organization that owns the Github repository for the source" ))
+      repo:         (( param "Please specify the name of the Github repository for the source" ))
+      branch:       master
+      private_key:  (( param "Please generate an SSH Deployment Key for this repo and specify it here" ))
+      access_token: (( param "Please generate a Personal Access Token and specify it here" ))
+
+  tests:
+    github: 
+      uri:          (( concat "git@github.com:" meta.tests.github.owner "/" meta.tests.github.repo ))
+      owner:        (( grab meta.source.github.owner ))
+      repo:         (( grab meta.source.github.repo ))
+      branch:       (( grab meta.source.github.branch ))
+      private_key:  (( grab meta.source.github.private_key ))
+    cmd:            (( param "Please specify the executable for the test" ))
+    args:           (( param "Please specify the arguments (as an array) for the test command" ))
 
   dockerhub:
     email:      (( param "Please specify the email address for your Dockerhub account" ))
@@ -38,11 +49,12 @@ meta:
     repository: (( param "Please specify the name of the image (repo/name) that you are building" ))
 
   slack:
-    webhook:       (( param "Please specify your Slack Incoming Webhook Integration URL" ))
-    notification: '(( concat ":concourse-fail: <" meta.url "/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME| Failed to build " meta.name "!  Click for details.>" ))'
-    channel:       (( param "Please specify the channel (#name) or user (@user) to send messages to" ))
-    username:      concourse
-    icon:          http://cl.ly/image/3e1h0H3H2s0P/concourse-logo.png
+    webhook:         (( param "Please specify your Slack Incoming Webhook Integration URL" ))
+    channel:         (( param "Please specify the channel (#name) or user (@user) to send messages to" ))
+    username:        concourse
+    icon:            http://cl.ly/image/3e1h0H3H2s0P/concourse-logo.png
+    build_fail_msg: '(( concat ":concourse-fail: <" meta.url "/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME| Failed to build " meta.name "!  Click for details.>" ))'
+    test_fail_msg:  '(( concat ":concourse-fail: <" meta.url "/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME| Failed " meta.name " tests!  Click for details.>" ))'
 
 groups:
   - name: (( grab meta.name ))
@@ -51,23 +63,54 @@ groups:
       - promote
       - minor
       - major
+      - test
 
 jobs:
   - name: build
     public: true
     serial: true
     plan:
-      - get: git
+      - get: source
         trigger: true
       - put: edge
-        params: { build: git }
+        params: { build: source }
         on_failure:
           put: notify
           params:
             channel:  (( grab meta.slack.channel ))
             username: (( grab meta.slack.username ))
             icon_url: (( grab meta.slack.icon ))
-            text:     (( grab meta.slack.notification ))
+            text:     (( grab meta.slack.build_fail_msg ))
+
+  - name: test
+    public: true
+    serial: true
+    plan:
+      - aggregate:
+          - { get: tests }
+          - { get: edge,    passed: [build], trigger: true }
+          - { get: source,  passed: [build] }
+      - task: test-image
+        config:
+          platform: linux
+          image_resource:
+            type: docker-image
+            source: 
+              .: (( inject meta.dockerhub ))
+              tag:  edge
+          inputs:
+            - name: source
+            - name: tests
+          run:
+            path: (( grab meta.tests.cmd ))
+            args: (( grab meta.tests.args ))
+        on_failure:
+          put: notify
+          params:
+            channel:  (( grab meta.slack.channel ))
+            username: (( grab meta.slack.username ))
+            icon_url: (( grab meta.slack.icon ))
+            text:     (( grab meta.slack.test_fail_msg ))
 
   - name: minor
     public: true
@@ -87,26 +130,26 @@ jobs:
     plan:
       - aggregate:
           - { get: version }
-          - { get: edge, passed: [build], params: { save: true } }
-          - { get: git,  passed: [build] }
+          - { get: edge,    passed: [test], params: { save: true } }
+          - { get: source,  passed: [test] }
 
       - task: release
         config:
           image: docker:///starkandwayne/concourse
           platform: linux
           inputs:
-            - name: git
+            - name: source
             - name: version
           outputs:
             - name: gh
             - name: pushme
           run:
-            path: ./git/ci/scripts/release
+            path: ./source/ci/scripts/release
             args: []
           params:
-            REPO_ROOT:    git
+            REPO_ROOT:    sourse
             RELEASE_ROOT: gh
-            REPO_OUT:     pushme/git
+            REPO_OUT:     pushme/source
             VERSION_FROM: version/number
 
       - put: latest # as 'latest'
@@ -129,10 +172,10 @@ jobs:
         - put: version
           params:
             bump: patch
-        - put: git
+        - put: source
           params:
             rebase: true
-            repository: pushme/git
+            repository: pushme/source
         - put: github
           params:
             name: gh/name
@@ -146,12 +189,19 @@ resource_types:
       repository: cfcommunity/slack-notification-resource
 
 resources:
-  - name: git
+  - name: source
     type: git
     source:
-      uri:         (( grab meta.github.uri ))
-      branch:      (( grab meta.github.branch ))
-      private_key: (( grab meta.github.private_key ))
+      uri:         (( grab meta.source.github.uri ))
+      branch:      (( grab meta.source.github.branch ))
+      private_key: (( grab meta.source.github.private_key ))
+
+  - name: tests
+    type: git
+    source:
+      uri:         (( grab meta.tests.github.uri ))
+      branch:      (( grab meta.tests.github.branch ))
+      private_key: (( grab meta.tests.github.private_key ))
 
   - name: edge
     type: docker-image
@@ -183,6 +233,6 @@ resources:
   - name: github
     type: github-release
     source:
-      user:         (( grab meta.github.owner ))
-      repository:   (( grab meta.github.repo ))
-      access_token: (( grab meta.github.access_token ))
+      user:         (( grab meta.source.github.owner ))
+      repository:   (( grab meta.source.github.repo ))
+      access_token: (( grab meta.source.github.access_token ))

@@ -18,11 +18,16 @@ meta:
     password: (( vault "secret/dockerhub:password" ))
     repository: cfcommunity/redis-resource
 
-  github:
-    owner: starkandwayne
-    repo:  redis-resource
-    private_key:  (( vault "secret/pipelines/redis-resource/github:private" ))
-    access_token: (( vault "secret/pipelines/redis-resource/github:token" ))
+  source:
+    github:
+      owner: starkandwayne
+      repo:  redis-resource
+      private_key:  (( vault "secret/pipelines/redis-resource/github:private" ))
+      access_token: (( vault "secret/pipelines/redis-resource/github:token" ))
+
+  tests:
+    cmd: tests/tests/run_tests.sh
+    args: []
 
   slack:
     webhook: (( vault "secret/pipelines/redis-resource/slack:webhook" ))

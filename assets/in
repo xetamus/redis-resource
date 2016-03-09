@@ -1,0 +1,44 @@
+#!/bin/bash
+# vim: set ft=sh
+
+set -e
+
+exec 3>&1 # make stdout available as fd 3 for the result
+exec 1>&2 # redirect all output to stderr for logging
+
+destination=$1
+
+source $(dirname $0)/common.sh
+
+if [ -z "$destination" ]; then
+  echo "usage: $0 <path/to/destination>" >&2
+  exit 1
+fi
+
+cd $destination
+
+all_keys=()
+for key_pattern in "${keys[@]}"
+do
+  while read -r
+  do 
+    all_keys+=($REPLY)
+  done < <(eval "redis-cli --raw $connect_opts keys '${key_pattern}'")
+done
+
+if [[ "${#all_keys[@]}" -eq 0 ]]
+then
+  new_ref=0
+else
+  for key in "${all_keys[@]}"
+  do
+    value="$(eval "redis-cli --raw $connect_opts get '${key}'")"
+    echo -n "$value" > "${key}"
+  done
+  new_ref="$(calc_reference)"
+fi
+
+jq -n "{
+  \"version\": {\"ref\": \"$new_ref\"},
+  \"metadata\": $(key_metadata)
+}" >&3
