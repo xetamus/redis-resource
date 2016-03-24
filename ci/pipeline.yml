@@ -147,7 +147,7 @@ jobs:
             path: ./source/ci/scripts/release
             args: []
           params:
-            REPO_ROOT:    sourse
+            REPO_ROOT:    source
             RELEASE_ROOT: gh
             REPO_OUT:     pushme/source
             VERSION_FROM: version/number
