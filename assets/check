@@ -8,6 +8,8 @@ exec 1>&2 # redirect all output to stderr for logging
 
 source $(dirname $0)/common.sh
 
+last_refs=$(jq -r '.version.ref // ""' < $payload)
+
 destination=$TMPDIR/redis-resource-check
 mkdir -p $destination
 cd $destination
@@ -16,7 +18,7 @@ all_keys=()
 for key_pattern in "${keys[@]}"
 do
   while read -r
-  do 
+  do
     all_keys+=($REPLY)
   done < <(eval "redis-cli --raw $connect_opts keys '${key_pattern}'")
 done
@@ -33,6 +35,11 @@ else
   new_ref="$(calc_reference)"
 fi
 
-jq -n "{
-  \"ref\": \"$new_ref\"
-}" >&3
+if [[ "$new_ref" == "$last_refs" ]]
+then
+  echo "[]" >&3
+else
+  jq -n "[
+    {\"ref\": \"$new_ref\"}
+  ]" >&3
+fi
