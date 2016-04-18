@@ -29,10 +29,9 @@ then
 else
   for key in "${all_keys[@]}"
   do
-    value="$(eval "redis-cli --raw $connect_opts get '${key}'")"
-    echo -n "$value" > "${key}"
+    eval "redis-cli --raw $connect_opts get '${key}' > '${key}'"
   done
-  new_ref="$(calc_reference)"
+  new_ref="$(calc_reference all_keys[@])"
 fi
 
 if [[ "$new_ref" == "$last_refs" ]]

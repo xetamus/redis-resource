@@ -49,10 +49,10 @@ else
     fi
   done
   # TODO: This needs to be protected from keys that contain exceptional characters
-  new_ref="$(calc_reference)"
+  new_ref="$(calc_reference all_keys[@])"
 fi
 
 jq -n "{
   \"version\": {\"ref\": \"$new_ref\"},
-  \"metadata\": $(key_metadata)
+  \"metadata\": $(key_metadata all_keys[@])
 }" >&3

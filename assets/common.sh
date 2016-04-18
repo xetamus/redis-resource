@@ -3,9 +3,9 @@ payload=$(mktemp $TMPDIR/git-resource-request.XXXXXX)
 cat > $payload <&0
 
 host=$(jq -r '.source.host // ""' < $payload)
-port=$(jq -r '.source.port // "6379"' < $payload)
+port=$(jq -r '.source.port // ""' < $payload)
 password=$(jq -r '.source.password // ""' < $payload)
-dbnum=$(jq -r '.source.db_number // "0"' < $payload)
+dbnum=$(jq -r '.source.db_number // ""' < $payload)
 
 if [ -z "$host" ]
 then
@@ -31,12 +31,19 @@ then
 fi
 
 key_metadata() {
-  key_list="$(printf "%s\n" "${all_keys[@]}")"
+  local data
+  declare -a data=("${!1}")
+
+  key_list="$(printf "%s\n" "${data[@]}")"
   jq -ncM --arg keys "$key_list" '[{"name": "keys", "value": $keys }]'
 }
 
 calc_reference() {
-  for file in "${all_files[@]}"
+
+  local data
+  declare -a data=("${!1}")
+
+  for file in "${data[@]}"
   do 
     sha1sum "$file"
   done | sha1sum | cut -d' ' -f1

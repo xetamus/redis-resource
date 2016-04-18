@@ -32,13 +32,14 @@ then
 else
   for key in "${all_keys[@]}"
   do
-    value="$(eval "redis-cli --raw $connect_opts get '${key}'")"
-    echo -n "$value" > "${key}"
+    # eval for the compound connect opts
+    # sed removes the extraneous newline that redis-cli adds to output
+    eval "redis-cli --raw $connect_opts get '${key}'" | sed '$d' > ${key}
   done
-  new_ref="$(calc_reference)"
+  new_ref="$(calc_reference all_keys[@])"
 fi
 
 jq -n "{
   \"version\": {\"ref\": \"$new_ref\"},
-  \"metadata\": $(key_metadata)
+  \"metadata\": $(key_metadata all_keys[@])
 }" >&3

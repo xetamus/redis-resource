@@ -68,9 +68,12 @@ differ, the sha1sum will be reported as a new version.
 The keys are pulled, written to the filesystem with the key being the filename
 and the value being the content.
 
-### `out`: Push to a repository.
+### `out`: Push into Redis.
 
 Store the contents of the files that match the keys in the redis datastore.
+Note that if the location specified in the `from:` parameter only has a subset
+of the matching keys, the implicit `get` that runs after the `put` will have
+a different reference ID.
 
 #### Parameters
 
