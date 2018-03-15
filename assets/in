@@ -33,8 +33,7 @@ else
   for key in "${all_keys[@]}"
   do
     # eval for the compound connect opts
-    # sed removes the extraneous newline that redis-cli adds to output
-    eval "redis-cli --raw $connect_opts get '${key}'" | sed '$d' > ${key}
+    eval "redis-cli --raw $connect_opts get '${key}'" > ${key}
   done
   new_ref="$(calc_reference all_keys[@])"
 fi
